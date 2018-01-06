@@ -299,6 +299,11 @@ class NginxConfManager(object):
 			if item == 'single_conf_item':
 				for i in des_dict[item]:
 					result_str = result_str + ' '*space_num + i + ';\n'
+			# item是'log_format'
+			if item == 'log_format':
+				log_list = des_dict[item].split("''")
+				result_str = result_str + ' '*space_num + "log_format {}'\n".format(log_list[0]) +"{}'".format(' '*space_num*2) + "'\n{}'".format(' '*space_num*2).join(log_list[1:]) + ';\n'
+				continue
 			# value是字符串 - 添加
 			if isinstance(des_dict[item], str):
 				result_str = result_str + ' '*space_num + '{} {}'.format(item, des_dict[item]) + ';\n'
