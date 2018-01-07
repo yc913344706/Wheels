@@ -1,9 +1,6 @@
 # -*- coding:utf-8 -*-
 import logging
-# 
-# 默认情况下，logging将日志打印到屏幕，日志级别为WARNING；
-# 日志级别大小关系为：CRITICAL > ERROR > WARNING > INFO > DEBUG > NOTSET
-# logging.warning("des location already existed!!!")
+
 
 class NginxConfManager(object):
 	'''
@@ -11,7 +8,7 @@ class NginxConfManager(object):
 	目标 - 提供界面化nginx配置文件任一配置项的新增、修改、删除功能<br>
 	2017/12/16 - 文件内容解析功能（返回dict）<br>
 	2017/12/18 - 修正计算end_index时，如果结束行有多个{，则解析错误的情况；修正有多个同名配置项时，会被解析为一个的情况；修正无server_name时报错的情况<br>
-	2018/01/07 - 增加添加location功能<br>
+	2018/01/07 - 增加 http> server> location 的增删改查功能<br>
 	'''
 	def __init__(self, nginx_conf_file):
 		self.__file = nginx_conf_file
@@ -34,8 +31,8 @@ class NginxConfManager(object):
 		'''
 		方法 - 添加location  # 注：会备份并格式化nginx配置文件
 		location_name - 要添加的location的名字。如"~ .*.(js|css)?$"、"/"
-		server_listen - 该location要添加到的server的listen值，该nginx配置文件有多个server时与server_name必须选填
-		server_name - 该location要添加到的server的server_name值，该nginx配置文件有多个server时与server_port必须选填
+		server_listen - 该location所在的server的listen值，该nginx配置文件有多个server时与server_name必须选填
+		server_name - 该location所在的server的server_name值，该nginx配置文件有多个server时与server_port必须选填
 		**location_kw - 要添加的location的key-value值
 		'''
 		server_dict = self.__get_server_dict(server_listen,server_name)
@@ -43,14 +40,12 @@ class NginxConfManager(object):
 		# 要添加的location已经存在
 		des_key = "location {}".format(location_name)
 		if des_key in server_dict:
-			logging.warning('des location "{}" already existed!!!'.format(location_name))
+			logging.warning('des location "{}" already existed!!!\nif you want add or update location\'s item,you can try update_location'.format(location_name))
 			return
 		# 添加key-value
-		des_value = {}
+		server_dict[des_key] = {}
 		for i in location_kw:
-			des_value[i] = location_kw[i]
-		# 更新
-		server_dict[des_key] = des_value
+			server_dict[des_key][i] = location_kw[i]
 		# 写入
 		conf_dict_tmp = self.conf_dict
 		server_dicts_list = conf_dict_tmp['http']['server']
@@ -65,7 +60,109 @@ class NginxConfManager(object):
 					conf_dict_tmp['http']['server'][index] = server_dict
 		self.__bakup_file()
 		self.__format_file(conf_dict_tmp)
+	
+	def delete_location(self, location_name, server_listen=None,server_name=None, location_key=None):
+		'''
+		方法 - 删除location  # 注：会备份并格式化nginx配置文件
+		location_name - type:str 要删除的location的名字。如"~ .*.(js|css)?$"、"/"
+		server_listen - type:int/str 该location所在的server的listen值，该nginx配置文件有多个server时与server_name必须选填
+		server_name - type:str 该location所在的server的server_name值，该nginx配置文件有多个server时与server_port必须选填
+		location_key - type:str/list 如果不是要删除location，只是要删除location中的一个或多个key，则传入此key或key组成的list
+		'''
+		server_dict = self.__get_server_dict(server_listen,server_name)
 		
+		# 要删除的location不存在
+		des_key = "location {}".format(location_name)
+		if not des_key in server_dict:
+			logging.warning('des location "{}" non existed!!!'.format(location_name))
+			return
+		# 删除/修改location
+		if location_key == None:
+			server_dict.pop(des_key)
+		else:
+			if isinstance(location_key, str):
+				if location_key not in server_dict[des_key]:
+					raise ValueError('des location key "{}" not in des location "{}"'.format(location_key, des_key))
+				server_dict[des_key].pop(location_key)
+			elif isinstance(location_key, list):
+				for i in location_key:
+					if i not in server_dict[des_key]:
+						raise ValueError('des location key "{}" not in des location "{}"'.format(i, des_key))
+					server_dict[des_key].pop(i)
+		# 写入
+		conf_dict_tmp = self.conf_dict
+		server_dicts_list = conf_dict_tmp['http']['server']
+		# 一个server
+		if isinstance(server_dicts_list, dict):
+			conf_dict_tmp['http']['server'] = server_dict
+		# 多个server
+		else:
+			for index in range(0, len(server_dicts_list)):
+				server_dict_tmp = server_dicts_list[index]
+				if ('__sub_type_id' in server_dict_tmp) and (server_dict_tmp['__sub_type_id'] == server_dict['__sub_type_id']):
+					conf_dict_tmp['http']['server'][index] = server_dict
+		self.__bakup_file()
+		self.__format_file(conf_dict_tmp)
+	
+	def update_location(self, location_name, server_listen=None,server_name=None, **location_kw):
+		'''
+		方法 - 修改location  # 注：会备份并格式化nginx配置文件，不存在的key-value会新增
+		location_name - 要修改的location的名字。如"~ .*.(js|css)?$"、"/"
+		server_listen - 该location所在的server的listen值，该nginx配置文件有多个server时与server_name必须选填
+		server_name - 该location所在的server的server_name值，该nginx配置文件有多个server时与server_port必须选填
+		**location_kw - 要修改的location的key-value值，不存在的key-value会新增
+		'''
+		server_dict = self.__get_server_dict(server_listen,server_name)
+		
+		# 要修改的location不存在
+		des_key = "location {}".format(location_name)
+		if not des_key in server_dict:
+			logging.warning('des location "{}" non existed!!!\nplease add that first'.format(location_name))
+			return
+			
+		len_before_add = len(server_dict[des_key])
+		# 修改location - 不存在的key-value会新增
+		for i in location_kw:
+			server_dict[des_key][i] = location_kw[i]
+		len_after_add = len(server_dict[des_key])
+		if len_after_add == len_before_add:
+			params_list = []
+			for i in location_kw:
+				params_list.append(i)
+			logging.warning('all des location\'s key "{}" already existed in "{}"!!!'.format(params_list,location_name))
+		
+		# 写入
+		conf_dict_tmp = self.conf_dict
+		server_dicts_list = conf_dict_tmp['http']['server']
+		# 一个server
+		if isinstance(server_dicts_list, dict):
+			conf_dict_tmp['http']['server'] = server_dict
+		# 多个server
+		else:
+			for index in range(0, len(server_dicts_list)):
+				server_dict_tmp = server_dicts_list[index]
+				if ('__sub_type_id' in server_dict_tmp) and (server_dict_tmp['__sub_type_id'] == server_dict['__sub_type_id']):
+					conf_dict_tmp['http']['server'][index] = server_dict
+		self.__bakup_file()
+		self.__format_file(conf_dict_tmp)
+	
+	def query_location(self, location_name, server_listen=None,server_name=None):
+		'''
+		方法 - 查询location  # 注：会备份并格式化nginx配置文件
+		location_name - 要查询的location的名字。如"~ .*.(js|css)?$"、"/"
+		server_listen - 该location所在的server的listen值，该nginx配置文件有多个server时与server_name必须选填
+		server_name - 该location所在的server的server_name值，该nginx配置文件有多个server时与server_port必须选填
+		'''
+		server_dict = self.__get_server_dict(server_listen,server_name)
+		
+		# 要修改的location不存在
+		des_key = "location {}".format(location_name)
+		if not des_key in server_dict:
+			logging.warning('des location "{}" non existed!!!\nplease add that first'.format(location_name))
+			return
+		# 修改location - 不存在的key-value会新增
+		return {des_key:server_dict[des_key]}
+	
 	def __analysis_str(self,des_str,result_dict=None):
 		'''
 		递归获得nginx配置文件解析结果dict
@@ -295,10 +392,13 @@ class NginxConfManager(object):
 		# 写入result_str，\n在末尾
 		for item in des_dict:
 			# item是'__sub_type_id' - 忽略
+			if item == '__sub_type_id':
+				continue
 			# item是'single_conf_item' - 添加
 			if item == 'single_conf_item':
 				for i in des_dict[item]:
 					result_str = result_str + ' '*space_num + i + ';\n'
+				continue
 			# item是'log_format'
 			if item == 'log_format':
 				log_list = des_dict[item].split("''")

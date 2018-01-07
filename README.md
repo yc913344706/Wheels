@@ -10,7 +10,7 @@ nginx配置文件管理器<br>
 2018/01/07 - 增加格式化文件功能（format_file()）、添加location功能（add_location()） - 会备份并改变原本配置文件<br>
 ### 使用举例
 <pre>
-# 假设Wheels的本地位置为'D:\Wheels'
+# 假设Wheels的本地位置为'E:\yc_study\github\Wheels'
 import sys
 sys.path.append(r'E:\yc_study\github\Wheels')
 from nginx.nginxConfManager import NginxConfManager
@@ -22,12 +22,35 @@ def dict_printer(dict):
 if __name__ == "__main__":
 	nginx_conf_file = r'E:\yc_study\github\Wheels\nginx\nginx_demo.conf'
 	nginx_conf_manager = NginxConfManager(nginx_conf_file)
-	# 获取配置字典
+	# 获取配置字典 - OK
 	# dict_printer(nginx_conf_manager.conf_dict)
-	# 格式化配置文件
+	# 格式化配置文件 - OK
 	# nginx_conf_manager.format_file()
-	# 添加location
-	nginx_conf_manager.add_location('^~ /isup-service-app/',server_listen=80, proxy_pass="http://127.0.0.1:88/isup-service-app/")
+	
+	# 查找存在的location - OK
+	# dict_printer( nginx_conf_manager.query_location('/',server_listen=80))
+	# 查找不存在的location - OK
+	# dict_printer( nginx_conf_manager.query_location('^~ /isup-service-app/',server_listen=80))
+	
+	# 添加location - OK
+	# nginx_conf_manager.add_location('^~ /isup-service-app/',server_listen=80, proxy_pass="http://127.0.0.1:88/isup-service-app/")
+	# 添加已经存在的location - OK
+	# nginx_conf_manager.add_location('^~ /isup-service-app/',server_listen=80, proxy_set_header="Host $host")
+
+	
+	# 删除location - OK
+	# nginx_conf_manager.delete_location('^~ /isup-service-app/',server_listen=80)
+	# 删除不存在的location - OK
+	# nginx_conf_manager.delete_location('^~ /isup-service-basic/',server_listen=80)
+	# 对已存在的location删除item - OK
+	# nginx_conf_manager.delete_location('^~ /isup-service-app/',server_listen=80, location_key = "proxy_set_header")
+	# nginx_conf_manager.delete_location('/',server_listen=80, location_key = ["proxy_intercept_errors", "proxy_connect_timeout"])
+	
+	# 修改存在的location - OK
+	# nginx_conf_manager.update_location('/',server_listen=80, proxy_redirect="on")
+	# nginx_conf_manager.update_location('~ .(jsp|jspx|do)?$',server_listen=80, proxy_set_header=["Host $host","X-Real-IP $remote_addr"])
+	# 修改不存在的location - OK
+	# nginx_conf_manager.update_location('^~ /isup-service-basic/',server_listen=80, proxy_set_header="Host $host")
 </pre>
 # ansible_installer
 ## 作用
