@@ -4,11 +4,11 @@ import logging
 
 class NginxConfManager(object):
 	'''
-	nginx配置文件管理器<br>
-	目标 - 提供界面化nginx配置文件任一配置项的新增、修改、删除功能<br>
-	2017/12/16 - 文件内容解析功能（返回dict）<br>
-	2017/12/18 - 修正计算end_index时，如果结束行有多个{，则解析错误的情况；修正有多个同名配置项时，会被解析为一个的情况；修正无server_name时报错的情况<br>
-	2018/01/07 - 增加 http> server> location 的增删改查功能<br>
+	nginx配置文件管理器<br/>
+	目标 - 提供界面化nginx配置文件任一配置项的新增、修改、删除功能<br/>
+	2017/12/16 - 文件内容解析功能（返回dict）<br/>
+	2017/12/18 - 修正计算end_index时，如果结束行有多个{，则解析错误的情况；修正有多个同名配置项时，会被解析为一个的情况；修正无server_name时报错的情况<br/>
+	2018/01/07 - 增加 http> server> location 的增删改查功能<br/>
 	'''
 	def __init__(self, nginx_conf_file):
 		self.__file = nginx_conf_file

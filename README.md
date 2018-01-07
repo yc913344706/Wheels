@@ -3,11 +3,11 @@
 # nginx
 ## nginxConfManager
 ### 作用
-nginx配置文件管理器<br>
-目标 -- 提供界面化nginx配置文件任一配置项的新增、修改、删除功能<br>
-2017/12/16 - 文件内容解析功能（返回dict）<br>
-2017/12/18 - 修正计算end_index时，如果结束行有多个{，则解析错误的情况；修正有多个同名配置项时，会被解析为一个的情况；修正无server_name时报错的情况<br>
-2018/01/07 - 增加格式化文件功能（format_file()）、添加location功能（add_location()） - 会备份并改变原本配置文件<br>
+nginx配置文件管理器<br/>
+目标 -- 提供界面化nginx配置文件任一配置项的新增、修改、删除功能<br/>
+	2017/12/16 - 文件内容解析功能（返回dict）<br/>
+	2017/12/18 - 修正计算end_index时，如果结束行有多个{，则解析错误的情况；修正有多个同名配置项时，会被解析为一个的情况；修正无server_name时报错的情况<br/>
+	2018/01/07 - 增加 http> server> location 的增删改查功能<br/>
 ### 使用举例
 <pre>
 # 假设Wheels的本地位置为'E:\yc_study\github\Wheels'
@@ -54,9 +54,9 @@ if __name__ == "__main__":
 </pre>
 # ansible_installer
 ## 作用
-ansible自动安装脚本 - shell
-需注意，如果本机python版本低于2.7，会自动安装2.7.10
-另：master版本对应rhel系列el7版本，el6版本的下载el6分支即可
+ansible自动安装脚本 - shell<br/>
+需注意，如果本机python版本低于2.7，会自动安装2.7.10<br/>
+另：master版本对应rhel系列el7版本，el6版本的下载el6分支即可<br/>
 ## 使用
 <pre>
 # 假设ansible_installer的位置为/data01/software/ansible_installer
