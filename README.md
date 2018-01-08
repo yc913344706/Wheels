@@ -1,6 +1,7 @@
 # Wheels
 自己造的轮子
 # nginx
+## 环境：python 3.6.3
 ## nginxConfManager
 ### 作用
 nginx配置文件管理器<br/>
