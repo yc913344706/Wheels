@@ -4,7 +4,7 @@
 ## 环境：python 3.6.3
 ## nginxConfManager
 ### 作用
-### 注意：格式化或增删改查时，会<strong>删除</strong>掉你的所有注释！！！不过不用担心，在源位置有备份:)
+### 注意：格式化或增删改查时，会**删除**掉你的所有注释！！！不过不用担心，在源位置有备份:)
 nginx配置文件管理器<br/>
 目标 - 提供界面化nginx配置文件任一配置项的新增、修改、删除功能<br/>
 2017/12/16 - 文件内容解析功能（返回dict）<br/>
@@ -13,6 +13,7 @@ nginx配置文件管理器<br/>
 2018/01/08 - 增加格式化时候的排序<br/>
 ### 使用举例
 <pre>
+```Python
 # 假设Wheels的本地位置为'E:\yc_study\github\Wheels'
 import sys
 sys.path.append(r'E:\yc_study\github\Wheels')
@@ -54,6 +55,7 @@ if __name__ == "__main__":
 	# nginx_conf_manager.update_location('~ .(jsp|jspx|do)?$',server_listen=80, proxy_set_header=["Host $host","X-Real-IP $remote_addr"])
 	# 修改不存在的location - OK
 	# nginx_conf_manager.update_location('^~ /isup-service-basic/',server_listen=80, proxy_set_header="Host $host")
+```
 </pre>
 # ansible_installer
 ## 环境：CentOS 7.3 :bash
