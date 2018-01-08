@@ -55,8 +55,9 @@ if __name__ == "__main__":
 	# nginx_conf_manager.update_location('^~ /isup-service-basic/',server_listen=80, proxy_set_header="Host $host")
 </pre>
 # ansible_installer
+## 环境：CentOS 7.3 :bash
 ## 作用
-ansible自动安装脚本 - shell<br/>
+ansible自动安装脚本 - shell脚本<br/>
 需注意，如果本机python版本低于2.7，会自动安装2.7.10<br/>
 另：master版本对应rhel系列el7版本，el6版本的下载el6分支即可<br/>
 ## 使用
