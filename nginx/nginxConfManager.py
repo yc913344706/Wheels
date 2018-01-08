@@ -9,6 +9,7 @@ class NginxConfManager(object):
 	2017/12/16 - 文件内容解析功能（返回dict）<br/>
 	2017/12/18 - 修正计算end_index时，如果结束行有多个{，则解析错误的情况；修正有多个同名配置项时，会被解析为一个的情况；修正无server_name时报错的情况<br/>
 	2018/01/07 - 增加 http> server> location 的增删改查功能<br/>
+	2018/01/08 - 增加格式化时候的排序<br/>
 	'''
 	def __init__(self, nginx_conf_file):
 		self.__file = nginx_conf_file
@@ -389,27 +390,52 @@ class NginxConfManager(object):
 		else:
 			space_num += 4
 		result_str = ""
-		# 写入result_str，\n在末尾
+		
+		import re
+		# location.*[\s]/有其单独的排序规则，故与其他拆开
+		location_dict = {}
 		for item in des_dict:
+			if isinstance(des_dict[item], dict) and re.match(r'location.*[\s]/',item) != None:
+				location_dict[item] = des_dict[item]
+		
+		print('--->',sorted([(k, des_dict[k]) for k in des_dict],key=lambda x: (isinstance(x[1], dict),isinstance(x[1], list))))
+		
+		# 写入result_str，\n在末尾(除过location.*[\s]/)
+		# sorted函数key的用法 - https://segmentfault.com/q/1010000005111826
+		for item,value in sorted([(k, des_dict[k]) for k in des_dict],key=lambda x: (\
+		# server-listen在最前
+		not x[0] == 'listen',\
+		# server-name在第二前
+		not x[0] == 'server_name',\
+		# http-server在最后
+		x[0] == 'server',\
+		# server-location在第二后（除过location.*[\s]/）
+		x[0].startswith('location'),\
+		# 其他的dict在最后
+		isinstance(x[1], dict), \
+		# isinstance(x[1], list),\
+		# 在上面的规则基础上，按key排序
+		x[0]\
+		)):
 			# item是'__sub_type_id' - 忽略
 			if item == '__sub_type_id':
 				continue
 			# item是'single_conf_item' - 添加
 			if item == 'single_conf_item':
-				for i in des_dict[item]:
+				for i in value:
 					result_str = result_str + ' '*space_num + i + ';\n'
 				continue
 			# item是'log_format'
 			if item == 'log_format':
-				log_list = des_dict[item].split("''")
+				log_list = value.split("''")
 				result_str = result_str + ' '*space_num + "log_format {}'\n".format(log_list[0]) +"{}'".format(' '*space_num*2) + "'\n{}'".format(' '*space_num*2).join(log_list[1:]) + ';\n'
 				continue
 			# value是字符串 - 添加
-			if isinstance(des_dict[item], str):
-				result_str = result_str + ' '*space_num + '{} {}'.format(item, des_dict[item]) + ';\n'
+			if isinstance(value, str):
+				result_str = result_str + ' '*space_num + '{} {}'.format(item, value) + ';\n'
 			# value是列表
-			if isinstance(des_dict[item], list):
-				for i in des_dict[item]:
+			if isinstance(value, list):
+				for i in value:
 					## value中的每一项是字符串 - 添加
 					if isinstance(i,str):
 						result_str = result_str + ' '*space_num + '{} {}'.format(item, i) + ';\n'
@@ -418,8 +444,21 @@ class NginxConfManager(object):
 						# result_str = result_str + ' '*space_num  + self.__get_formatter_str(i, space_num) + ' '*space_num + '}\n'
 						result_str = result_str + ' '*space_num + str(item) + '\n' + ' '*space_num + '{\n' + self.__get_formatter_str(i, space_num) + ' '*space_num + '}\n'
 			# value是dict - 递归
-			if isinstance(des_dict[item], dict):
-				result_str = result_str + ' '*space_num + str(item) + '\n' + ' '*space_num + '{\n' + self.__get_formatter_str(des_dict[item], space_num) + ' '*space_num + '}\n'
+			if isinstance(value, dict) and ( not item.startswith('location') ):
+				result_str = result_str + ' '*space_num + str(item) + '\n' + ' '*space_num + '{\n' + self.__get_formatter_str(value, space_num) + ' '*space_num + '}\n'
+		
+		# 获得location.*[\s]/字典的对应字符串，在最后
+		for item,value in sorted([(k, location_dict[k]) for k in location_dict],key=lambda x:(\
+			# 数字在最前面
+			not ( len( re.match(r'.*[\s]/',x[0]).group() ) != len( x[0] ) and x[0][len( re.match(r'.*[\s]/',x[0]).group() )].isdigit() ),\
+			# location / 第二个
+			not ( len( re.match(r'.*[\s]/',x[0]).group() ) == len( x[0] ) ),\
+			# 数字按照大小排序
+			# 其余的根据首字母排序
+			x[0][len( re.match(r'.*[\s]/',x[0]).group() )-1 : len( re.match(r'.*[\s]/',x[0]).group() )+1 ][-1].upper()
+		)):
+			if isinstance(value, dict) and item.startswith('location') :
+				result_str = result_str + ' '*space_num + str(item) + '\n' + ' '*space_num + '{\n' + self.__get_formatter_str(value, space_num) + ' '*space_num + '}\n'
 		return result_str
 		
 	def __get_server_dict(self, server_listen=None, server_name=None):
