@@ -10,7 +10,7 @@ import logging
 	nginx配置文件主要分为全局块、events块、http块 - 3
 	http块中分为http全局块、server块、upstream块 - 2
 	server块中分为server全局块、location块、if块 - 1
-	location块中又分为location全局块、if块 - 0
+	location块中又分为location全局块、if块、limit_except块 - 0
 思路
 	将配置文件以字典形式存于内存，以对字典的增删改查，实现对配置文件的增删改查
 问题
@@ -41,9 +41,10 @@ import logging
 		}
 	2.1.不同程度模块化
 		根据解析出来的配置文件中的模块配置层级，决定可使用的方法
-		"http"、"events" > "server"、"upstream" > "location" > "if"
+		"http"、"events" > "server"、"upstream" > "location" > "if"、"limit_except"
 		3 > 2 > 1 > 0
-		只有if，无location时，提示无法解析，并自动销毁对象
+		# {"events", "http", "upstream", "server"} - 继续
+		# { "if", "limit_except", "location"} - 报错
 	3.尾行注释问题
 		添加"last_comment"属性
 '''
@@ -58,10 +59,13 @@ class NginxConfManager(object):
 	2018/01/08 - 增加格式化时候的排序<br/>
 	'''
 	
+	################################ 类属性 start ################################
+	
 	TIPS_DICT = {
 		"FILE_MODULATE_ERROR":"FAILED >>> You took your config file too small to analyze !!!",
 		"FILE_MODULATE_WARNING":"WARNING >>> You took your config file a little small to analyze !!!",
 		
+		"LIMIT_EXCEPT_MODULE_ANALYSIS_WARNING":"WARNING >>> Analysis limit_except module warning !!!",
 		"IF_MODULE_ANALYSIS_WARNING":"WARNING >>> Analysis if module warning !!!",
 		"LOCATION_MODULE_ANALYSIS_WARNING":"WARNING >>> Analysis location module warning !!!",
 		"SERVER_MODULE_ANALYSIS_WARNING":"WARNING >>> Analysis server module warning !!!",
@@ -70,6 +74,7 @@ class NginxConfManager(object):
 		"EVENTS_MODULE_ANALYSIS_WARNING":"WARNING >>> Analysis events module warning !!!",
 	}
 	
+	# block等级字典
 	MODULATE_LEVEL_DICT = {
 		"http" : 3,
 		"events" : 3,
@@ -77,17 +82,24 @@ class NginxConfManager(object):
 		"upstream" : 2,
 		"location" : 1,
 		"if" : 0,
+		"limit_except" : 0,
 	}
 	
+	################################ 类属性 start ################################
+	
+	################################ 内部方法 start ################################
+	
+	# 解析 events 块 -> events 解析结果字典
 	def __analysis_events_list(self, events_list, event_comment, event_block_prefix):
 		# {
 			# "comments":[],
 			# "globals":{},
+			# "last_comment":last_comment,
 		# }
-		print('start analyze events')
-		print('events_list', '>>>\n', events_list)
-		print('event_comment', '>>>\n', event_comment)
-		print('event_block_prefix', '>>>\n', event_block_prefix)
+		print('start analyze events', event_block_prefix)
+		# print('events_list', '>>>\n', events_list)
+		# print('event_comment', '>>>\n', event_comment)
+		# print('event_block_prefix', '>>>\n', event_block_prefix)
 		
 		globals, blocks, last_comment = self.__analysis_unit(events_list)
 		if event_block_prefix.strip().lower() != "events":
@@ -100,41 +112,42 @@ class NginxConfManager(object):
 		return {
 			"comments":event_comment,
 			"globals":globals,
-			# "last_comment":last_comment,
+			"last_comment":last_comment,
 		}
 	
+	# 解析 http 块 -> http 解析结果字典
 	def __analysis_http_list(self, http_list, http_comment, http_block_prefix):
 		# {
 			# "comments":[],
 			# "globals":{},
 			# "upstreams":[],
 			# "servers":[],
-			
+			# "last_comment":last_comment,
 		# }
-		print('start analyze http')
-		print('http_list', '>>>\n', http_list)
-		print('http_comment', '>>>\n', http_comment)
-		print('http_block_prefix', '>>>\n', http_block_prefix)
+		print('start analyze http', http_block_prefix)
+		# print('http_list', '>>>\n', http_list)
+		# print('http_comment', '>>>\n', http_comment)
+		# print('http_block_prefix', '>>>\n', http_block_prefix)
 		
 		globals, blocks, last_comment = self.__analysis_unit(http_list)
-		print('======',blocks)
+		# print('======',blocks)
 		if http_block_prefix.strip().lower() != "http":
 			raise YcException(NginxConfManager.TIPS_DICT["HTTP_MODULE_ANALYSIS_WARNING"] + '\n>>> http prefix error!!!\n>>>'+ http_block_prefix)
 		upstreams = None
 		servers = None
 		if blocks != None:
 			for block in blocks:
-				print('===========', block["block_type"])
+				# print('===========', block["block_type"])
 				if ( not block["block_type"].strip().lower().startswith("upstream ") ) and ( block["block_type"] != "server" ):
 					raise YcException(NginxConfManager.TIPS_DICT["HTTP_MODULE_ANALYSIS_WARNING"] + '\n>>> http\' subblock is\'t upstream or server !!!\n>>>' +block["block_type"])
 				if block["block_type"].strip().lower().startswith("upstream "):
 					if upstreams == None:
 						upstreams = []
-					upstreams.append({block["id"]:self.__analysis_upstream_list(block["block_content_list"], block["block_comment"], block["block_type"])})
+					upstreams.append((block["id"], self.__analysis_upstream_list(block["block_content_list"], block["block_comment"], block["block_type"])))
 				if block["block_type"] == "server":
 					if servers == None:
 						servers = []
-					servers.append({block["id"]:self.__analysis_server_list(block["block_content_list"], block["block_comment"], block["block_type"])})
+					servers.append((block["id"], self.__analysis_server_list(block["block_content_list"], block["block_comment"], block["block_type"])))
 					
 		print('finish analyze http')
 		return {
@@ -142,19 +155,21 @@ class NginxConfManager(object):
 			"globals":globals,
 			"upstreams":upstreams,
 			"servers":servers,
-			# "last_comment":last_comment,
+			"last_comment":last_comment,
 		}
 	
+	# 解析 upstream 块 -> upstream 解析结果字典
 	def __analysis_upstream_list(self, upstream_list, upstream_comment, upstream_block_prefix):
 		# {
 			# "comments":[],
 			# "name":"",
 			# "globals":{},
+			# "last_comment":last_comment,
 		# }
-		print('start analyze upstream')
-		print('upstream_list', '>>>\n', upstream_list)
-		print('upstream_comment', '>>>\n', upstream_comment)
-		print('upstream_block_prefix', '>>>\n', upstream_block_prefix)
+		print('start analyze upstream', upstream_block_prefix)
+		# print('upstream_list', '>>>\n', upstream_list)
+		# print('upstream_comment', '>>>\n', upstream_comment)
+		# print('upstream_block_prefix', '>>>\n', upstream_block_prefix)
 		
 		globals, blocks, last_comment = self.__analysis_unit(upstream_list)
 		if not upstream_block_prefix.strip().lower().startswith("upstream "):
@@ -168,20 +183,22 @@ class NginxConfManager(object):
 			"comments":upstream_comment,
 			"name":upstream_block_prefix[9:].strip(),
 			"globals":globals,
-			# "last_comment":last_comment,
+			"last_comment":last_comment,
 		}
 	
+	# 解析 server 块 -> server 解析结果字典
 	def __analysis_server_list(self, server_list, server_comment, server_block_prefix):
 		# {
 			# "comments":[],
 			# "globals":{"listen":"listen_content", "server_name":"server_name_content",...},
 			# "ifs":[],
 			# "locations":[],
+			# "last_comment":last_comment,
 		# }
-		print('start analyze server')
-		print('server_list', '>>>\n', server_list)
-		print('server_comment', '>>>\n', server_comment)
-		print('server_block_prefix', '>>>\n', server_block_prefix)
+		print('start analyze server', server_block_prefix)
+		# print('server_list', '>>>\n', server_list)
+		# print('server_comment', '>>>\n', server_comment)
+		# print('server_block_prefix', '>>>\n', server_block_prefix)
 		
 		globals, blocks, last_comment = self.__analysis_unit(server_list)
 		if server_block_prefix.strip().lower() != "server":
@@ -195,11 +212,11 @@ class NginxConfManager(object):
 				if block["block_type"].strip().lower().startswith("if "):
 					if ifs == None:
 						ifs = []
-					ifs.append({block["id"]:self.__analysis_if_list(block["block_content_list"], block["block_comment"], block["block_type"])})
+					ifs.append((block["id"], self.__analysis_if_list(block["block_content_list"], block["block_comment"], block["block_type"])))
 				if block["block_type"].strip().lower().startswith("location "):
 					if locations == None:
 						locations = []
-					locations.append({block["id"]:self.__analysis_location_list(block["block_content_list"], block["block_comment"], block["block_type"])})
+					locations.append((block["id"], self.__analysis_location_list(block["block_content_list"], block["block_comment"], block["block_type"])))
 		
 		print('finish analyze server')
 		return {
@@ -207,31 +224,43 @@ class NginxConfManager(object):
 			"globals":globals,
 			"ifs":ifs,
 			"locations":locations,
-			# "last_comment":last_comment,
+			"last_comment":last_comment,
 		}
 	
+	# 解析 location 块 -> location 解析结果字典
 	def __analysis_location_list(self, location_list, location_comment, location_block_prefix):
 		# {
 			# "comments":[],
 			# "name":"",
 			# "globals":{},
 			# "ifs":[],
+			# "limit_excepts":[],
+			# "last_comment":last_comment,
 		# }
-		print('start analyze location')
-		print('location_list', '>>>\n', location_list)
-		print('location_comment', '>>>\n', location_comment)
-		print('location_block_prefix', '>>>\n', location_block_prefix)
+		print('start analyze location', location_block_prefix)
+		# print('location_list', '>>>\n', location_list)
+		# print('location_comment', '>>>\n', location_comment)
+		# print('location_block_prefix', '>>>\n', location_block_prefix)
 		
 		globals, blocks, last_comment = self.__analysis_unit(location_list)
 		if not location_block_prefix.strip().lower().startswith("location "):
 			raise YcException(NginxConfManager.TIPS_DICT["LOCATION_MODULE_ANALYSIS_WARNING"] + '\n>>> location prefix error!!!\n>>>'+ location_block_prefix)
 		ifs = None
+		limit_excepts = None
 		if blocks != None:
-			ifs = []
 			for block in blocks:
-				if not block["block_type"].strip().lower().startswith("if "):
-					raise YcException(NginxConfManager.TIPS_DICT["LOCATION_MODULE_ANALYSIS_WARNING"] + '\n>>> location\' subblock is\'t if !!!\n>>>' + block["block_type"])
-				ifs.append({block["id"]:self.__analysis_if_list(block["block_content_list"], block["block_comment"], block["block_type"])})
+				# if not block["block_type"].strip().lower().startswith("if "):
+				if ( not block["block_type"].strip().lower().startswith("if ") ) and ( not block["block_type"].startswith("limit_except ") ):
+					raise YcException(NginxConfManager.TIPS_DICT["LOCATION_MODULE_ANALYSIS_WARNING"] + '\n>>> location\' subblock is\'t if or limit_except!!!\n>>>' + block["block_type"])
+				# ifs.append({block["id"]:self.__analysis_if_list(block["block_content_list"], block["block_comment"], block["block_type"])})
+				if block["block_type"].strip().lower().startswith("if "):
+					if ifs == None:
+						ifs = []
+					ifs.append((block["id"], self.__analysis_if_list(block["block_content_list"], block["block_comment"], block["block_type"])))
+				if block["block_type"].strip().lower().startswith("limit_except "):
+					if limit_excepts == None:
+						limit_excepts = []
+					limit_excepts.append((block["id"], self.__analysis_limit_except_list(block["block_content_list"], block["block_comment"], block["block_type"])))
 		
 		print('finish analyze location')
 		return {
@@ -239,19 +268,22 @@ class NginxConfManager(object):
 			"name":location_block_prefix[9:].strip(),
 			"globals":globals,
 			"ifs":ifs,
-			# "last_comment":last_comment,
+			"limit_excepts":limit_excepts,
+			"last_comment":last_comment,
 		}
-		
+	
+	# 解析 if 块 -> if 解析结果字典
 	def __analysis_if_list(self, if_list, if_comment, if_block_prefix):
 		# {
 			# "comments":[],
 			# "condition":"",
 			# "globals":{},
+			# "last_comment":last_comment,
 		# }
-		print('start analyze if')
-		print('if_list', '>>>\n', if_list)
-		print('if_comment', '>>>\n', if_comment)
-		print('if_block_prefix', '>>>\n', if_block_prefix)
+		print('start analyze if', if_block_prefix)
+		# print('if_list', '>>>\n', if_list)
+		# print('if_comment', '>>>\n', if_comment)
+		# print('if_block_prefix', '>>>\n', if_block_prefix)
 		
 		globals, blocks, last_comment = self.__analysis_unit(if_list)
 		if not if_block_prefix.strip().lower().startswith("if "):
@@ -265,9 +297,38 @@ class NginxConfManager(object):
 			"comments":if_comment,
 			"condition":if_block_prefix[3:].strip(),
 			"globals":globals,
-			# "last_comment":last_comment,
+			"last_comment":last_comment,
 		}
+	
+	# 解析 limit_except 块 -> limit_except 解析结果字典
+	def __analysis_limit_except_list(self, limit_except_list, limit_except_comment, limit_except_block_prefix):
+		# {
+			# "comments":[],
+			# "condition":"",
+			# "globals":{},
+			# "last_comment":last_comment,
+		# }
+		print('start analyze limit_except', limit_except_block_prefix)
+		# print('limit_except_list', '>>>\n', limit_except_list)
+		# print('limit_except_comment', '>>>\n', limit_except_comment)
+		# print('limit_except_block_prefix', '>>>\n', limit_except_block_prefix)
 		
+		globals, blocks, last_comment = self.__analysis_unit(limit_except_list)
+		if not limit_except_block_prefix.strip().lower().startswith("limit_except "):
+			raise YcException(NginxConfManager.TIPS_DICT["LIMIT_EXCEPT_MODULE_ANALYSIS_WARNING"] + '\n>>> limit_except prefix error!!!\n>>>' + limit_except_block_prefix)
+		
+		if blocks != None:
+			raise YcException(NginxConfManager.TIPS_DICT["LIMIT_EXCEPT_MODULE_ANALYSIS_WARNING"] + '\n>>> limit_except have sub blocks !!!\n>>>' + blocks)
+		
+		print('finish analyze limit_except')
+		return {
+			"comments":limit_except_comment,
+			"condition":limit_except_block_prefix[13:].strip(),
+			"globals":globals,
+			"last_comment":last_comment,
+		}
+	
+	# 解析传入的list（不以"{"开头）-> 包含全局配置与子模块的字典
 	def __analysis_unit(self, contents_list):
 		# {
 			# "globals":[
@@ -290,7 +351,7 @@ class NginxConfManager(object):
 		globals = {}
 		
 		last_comment = []
-		last_comment_flag = -1
+		last_comment_flag = True
 		
 		before_comments = []
 		backend_comment = None
@@ -319,15 +380,21 @@ class NginxConfManager(object):
 			if content.startswith('#') and bracket_num == 0:
 				# print('type > line comment')
 				has_comment = True
-				if last_comment_flag == 1:
+				last_comment_index = index_content +1
+				while last_comment_index < len(contents_list):
+					if not contents_list[last_comment_index].startswith('#'):
+						last_comment_flag = False
+						break
+					last_comment_index += 1
+				if last_comment_flag == True:
 					last_comment.append(content)
 				else:
 					before_comments.append(content)
 				continue
 			
 			# ====此后，每一个continue之前，应该清空comment_list_tmp============
-			# 设置 last_comment_flag = -1，
-			last_comment_flag = -1
+			# 设置 last_comment_flag = True，
+			last_comment_flag = True
 			last_comment = []
 			
 			# 末尾注释
@@ -385,7 +452,7 @@ class NginxConfManager(object):
 					if content.startswith('{'):
 						block_dict_tmp["id"] = len(blocks)+1
 						if block_dict_tmp["block_type"] != None:
-							block_dict_tmp["block_type"] +=  "\n" + content.split('{')[0].strip()
+							# block_dict_tmp["block_type"] +=  "\n" + content.split('{')[0].strip()
 							multi_line = False
 						else:
 							block_dict_tmp["block_type"] = contents_list[index_content-1].split('}')[-1].split('#')[0].strip()
@@ -446,7 +513,7 @@ class NginxConfManager(object):
 					## 如果block结束，添加内容到 block_dict_tmp
 					## 添加 block_dict_tmp到 blocks
 					## 清空 block_dict_tmp
-					## 设置 last_comment_flag = 1,开始统计last_comment
+					
 					## 将'}'之后的所有内容插到file_list中
 					if word_tmp == '}':
 						bracket_num -= 1
@@ -457,7 +524,7 @@ class NginxConfManager(object):
 							# print('===============',block_dict_tmp)
 							blocks.append(block_dict_tmp)
 							block_dict_tmp = {"id":None,"block_content_list":None,"block_type":None,"block_comment":None}
-							last_comment_flag = 1
+							# last_comment_flag = 1
 							# print('====',content, len(content))
 							content = content[index_word_tmp+1:].strip()
 							# print('====',content, len(content))
@@ -547,11 +614,15 @@ class NginxConfManager(object):
 			globals = None
 		if len(blocks) == 0:
 			blocks = None
+		if len(last_comment) == 0:
+			last_comment = None
 		return (globals, blocks, last_comment)
-		
-	def __check_modulate_level(self, block_type):
+	
+	# 根据传入的block_type通过查询block等级字典确定该block的级别，如http - 3
+	def __match_modulate_level(self, block_type):
 		return NginxConfManager.MODULATE_LEVEL_DICT[block_type]
-		
+	
+	# 解析文件 -> 文件解析结果字典
 	def __analysis_file_list(self, file_list):
 		dict_tmp = {
 			"globals":{},
@@ -559,8 +630,8 @@ class NginxConfManager(object):
 			"http":{
 				"comments":None,
 				"globals":None,
-				"upstreams":[],
-				"servers":[],
+				"upstreams":None,
+				"servers":None,
 			}, 
 			"last_comment":None,
 		}
@@ -570,29 +641,46 @@ class NginxConfManager(object):
 		# print('===============',blocks)
 		
 		
-		# {"events", "http", "upstream", "server", "location"} - 继续
-		# { "if"} - 报错
+		# {"events", "http", "upstream", "server"} - 继续
+		# { "if", "limit_except", "location"} - 报错
 		
 		block_types_set = set()
 		if blocks != None:
 			for block in blocks:
-				# print('===============',block)
+				if block["block_type"].lower().strip().startswith('location '):
+					block_types_set.add("location")
+					continue
+				if block["block_type"].lower().strip().startswith('limit_except '):
+					block_types_set.add("limit_except")
+					continue
+				if block["block_type"].lower().strip().startswith('if '):
+					block_types_set.add("if")
+					continue
+				if block["block_type"].lower().strip().startswith('upstream '):
+					block_types_set.add("upstream")
+					continue
 				block_types_set.add(block["block_type"])
-		self.__modulate_level = max(map(self.__check_modulate_level, block_types_set))
+		self.__modulate_level = max(map(self.__match_modulate_level, block_types_set))
 		# print('===============',self.__modulate_level)
 		if self.__modulate_level == 0:
 			raise YcException(NginxConfManager.TIPS_DICT['FILE_MODULATE_ERROR'])
 		
 		if self.__modulate_level == 1:
-			print(TIPS_DICT['FILE_MODULATE_WARNING'])
+			raise YcException(NginxConfManager.TIPS_DICT['FILE_MODULATE_ERROR'])
 		
 		if self.__modulate_level == 2:
+			dict_tmp["globals"] = None
+			dict_tmp["events"] = None
 			dict_tmp["http"]["globals"] = globals
 			# dict_tmp["http"]["last_comment"] = last_comment
 			for block in blocks:
 				if block["block_type"] == "upstream":
+					if dict_tmp["http"]["upstream"] == None:
+						dict_tmp["http"]["upstream"] = []
 					dict_tmp["http"]["upstreams"].append({block["id"]:self.__analysis_upstream_list(block["block_content_list"], block["block_comment"], block["block_type"])})
 				if block["block_type"] == "server":
+					if dict_tmp["http"]["servers"] == None:
+						dict_tmp["http"]["servers"] = []
 					dict_tmp["http"]["servers"].append({block["id"]:self.__analysis_server_list(block["block_content_list"], block["block_comment"], block["block_type"])})
 		
 		if self.__modulate_level == 3:
@@ -607,11 +695,8 @@ class NginxConfManager(object):
 					dict_tmp["http"]["id"] = block["id"]
 				
 		return dict_tmp
-		
 	
-	def __init__(self, nginx_conf_file):
-		self.__file = nginx_conf_file
-	
+	# 重新加载并解析初始化时指定的文件 -> 文件解析结果字典
 	def __reload_file(self):
 		file_list = []
 		with open(self.__file, 'r', encoding="utf-8") as f_tmp:
@@ -621,20 +706,429 @@ class NginxConfManager(object):
 					file_list.append(line_tmp)
 		return self.__analysis_file_list(file_list)
 	
+	# 备份文件
+	def __bakup_file(self):
+		import os, time, shutil
+		# time.strftime("%Y-%m-%d-%H-%M-%S")
+		des_F = os.path.join(os.path.dirname(self.__file),"{}.{}.bak".format(os.path.basename(self.__file), time.strftime("%Y_%m_%d_%H_%M")))
+		try:
+			shutil.copy(self.__file,des_F)
+		except Exception as e:
+			raise SystemError( "backup file error >>>\n{}".format(e) )
 	
+	# 格式化nginx配置文件
+	def __format_file(self, des_dict):
+		result_str_list = self.__get_formatter_str_list(des_dict)
+		with open(self.__file, 'w', encoding="utf-8") as formatter_F:
+			for str_tmp in result_str_list:
+				formatter_F.write(str_tmp+'\n')
+	
+	def __get_events_list(self, events_dict, space_num):
+		# {
+			# "comments":[],
+			# "globals":{},
+			# "last_comment":last_comment,
+		# }
+		result_list = []
+		
+		root_space_str = ' ' * space_num
+		sub_space_str = ' ' * ( space_num + 4 )
+		
+		# before_comments
+		if ( events_dict["comments"] != None ) and ( events_dict["comments"][0] != None ):
+			for comment_tmp in events_dict["comments"][0]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		# events line & events backend_comment
+		events_line_str = "events " + "{"
+		if ( events_dict["comments"] != None ) and ( events_dict["comments"][1] != None ):
+			events_line_str += events_dict["comments"][1]
+		result_list.append(root_space_str + events_line_str)
+		
+		# global
+		if events_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(events_dict["globals"], space_num+4))
+		
+		# "}"
+		result_list.append(root_space_str + "}")
+		
+		# last_comment
+		if events_dict["last_comment"] != None:
+			for comment_tmp in events_dict["last_comment"]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		return result_list
+	
+	def __get_http_list(self, http_dict, space_num):
+		# {
+			# "comments":[],
+			# "globals":{},
+			# "upstreams":[],
+			# "servers":[],
+			# "last_comment":last_comment,
+		# }
+		result_list = []
+		
+		root_space_str = ' ' * space_num
+		sub_space_str = ' ' * ( space_num + 4 )
+		
+		# before_comments
+		if ( http_dict["comments"] != None ) and ( http_dict["comments"][0] != None ):
+			for comment_tmp in http_dict["comments"][0]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		# http line & http backend_comment
+		http_line_str = "http " + "{"
+		if ( http_dict["comments"] != None ) and ( http_dict["comments"][1] != None ):
+			http_line_str += http_dict["comments"][1]
+		result_list.append(root_space_str + http_line_str)
+		
+		# upstreams、servers
+		# 得按照upstream_dict与server_dict的key来决定先后顺序
+		sub_block_num = 0
+		if http_dict["upstreams"] != None:
+			sub_block_num += len(http_dict["upstreams"])
+		if http_dict["servers"] != None:
+			sub_block_num += len(http_dict["servers"])
+		for sub_block_id in range(1, sub_block_num+1):
+			if http_dict["upstreams"] != None:
+				for upstream_id, upstream_dict in http_dict["upstreams"]:
+					if sub_block_id == int(upstream_id):
+						result_list.extend(self.__get_upstream_list(upstream_dict, space_num+4))
+						break
+			if http_dict["servers"] != None:
+				for server_id, server_dict in http_dict["servers"]:
+					if sub_block_id == int(server_id):
+						result_list.extend(self.__get_server_list(server_dict, space_num+4))
+						break
+		
+		# global
+		if http_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(http_dict["globals"], space_num+4))
+		
+		# "}"
+		result_list.append(root_space_str + "}")
+		
+		# last_comment
+		if http_dict["last_comment"] != None:
+			for comment_tmp in http_dict["last_comment"]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		return result_list
+	
+	def __get_upstream_list(self, upstream_dict, space_num):
+		# {
+			# "comments":[],
+			# "name":"",
+			# "globals":{},
+			# "last_comment":last_comment,
+		# }
+		result_list = []
+		
+		root_space_str = ' ' * space_num
+		sub_space_str = ' ' * ( space_num + 4 )
+		
+		# before_comments
+		if ( upstream_dict["comments"] != None ) and ( upstream_dict["comments"][0] != None ):
+			for comment_tmp in upstream_dict["comments"][0]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		# upstream line & upstream backend_comment
+		upstream_line_str = "upstream " + upstream_dict["name"] + " {"
+		if ( upstream_dict["comments"] != None ) and ( upstream_dict["comments"][1] != None ):
+			upstream_line_str += upstream_dict["comments"][1]
+		result_list.append(root_space_str + upstream_line_str)
+		
+		# global
+		if upstream_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(upstream_dict["globals"], space_num+4))
+		
+		# "}"
+		result_list.append(root_space_str + "}")
+		
+		# last_comment
+		if upstream_dict["last_comment"] != None:
+			for comment_tmp in upstream_dict["last_comment"]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		return result_list
+	
+	def __get_server_list(self, server_dict, space_num):
+		# {
+			# "comments":[],
+			# "globals":{"listen":"listen_content", "server_name":"server_name_content",...},
+			# "ifs":[],
+			# "locations":[],
+			# "last_comment":last_comment,
+		# }
+		result_list = []
+		
+		root_space_str = ' ' * space_num
+		sub_space_str = ' ' * ( space_num + 4 )
+		
+		# before_comments
+		if ( server_dict["comments"] != None ) and ( server_dict["comments"][0] != None ):
+			for comment_tmp in server_dict["comments"][0]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		# server line & server backend_comment
+		server_line_str = "server " + "{"
+		if ( server_dict["comments"] != None ) and ( server_dict["comments"][1] != None ):
+			server_line_str += server_dict["comments"][1]
+		result_list.append(root_space_str + server_line_str)
+		
+		# ifs、locations
+		# 得按照if_dict与limit_except_dict的key来决定先后顺序
+		sub_block_num = 0
+		if server_dict["ifs"] != None:
+			sub_block_num += len(server_dict["ifs"])
+		if server_dict["locations"] != None:
+			sub_block_num += len(server_dict["locations"])
+		for sub_block_id in range(1, sub_block_num+1):
+			if server_dict["ifs"] != None:
+				for if_id, if_dict in server_dict["ifs"]:
+					if sub_block_id == int(if_id):
+						result_list.extend(self.__get_if_list(if_dict, space_num+4))
+						break
+			if server_dict["locations"] != None:
+				for location_id, location_dict in server_dict["locations"]:
+					if sub_block_id == int(location_id):
+						result_list.extend(self.__get_location_list(location_dict, space_num+4))
+						break
+		
+		# global
+		if server_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(server_dict["globals"], space_num+4))
+		
+		# "}"
+		result_list.append(root_space_str + "}")
+		
+		# last_comment
+		if server_dict["last_comment"] != None:
+			for comment_tmp in server_dict["last_comment"]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		return result_list
+	
+	def __get_location_list(self, location_dict, space_num):
+		# {
+			# "comments":[],
+			# "name":"",
+			# "globals":{},
+			# "ifs":[],
+			# "limit_excepts":[],
+			# "last_comment":last_comment,
+		# }
+		result_list = []
+		
+		root_space_str = ' ' * space_num
+		sub_space_str = ' ' * ( space_num + 4 )
+		
+		# before_comments
+		if ( location_dict["comments"] != None ) and ( location_dict["comments"][0] != None ):
+			for comment_tmp in location_dict["comments"][0]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		# location line & location backend_comment
+		location_line_str = "location " + location_dict["name"] + " {"
+		if ( location_dict["comments"] != None ) and ( location_dict["comments"][1] != None ):
+			location_line_str += location_dict["comments"][1]
+		result_list.append(root_space_str + location_line_str)
+		
+		# ifs、limit_excepts
+		# 得按照if_dict与limit_except_dict的key来决定先后顺序
+		sub_block_num = 0
+		if location_dict["ifs"] != None:
+			sub_block_num += len(location_dict["ifs"])
+		if location_dict["limit_excepts"] != None:
+			sub_block_num += len(location_dict["limit_excepts"])
+		for sub_block_id in range(1, sub_block_num+1):
+			if location_dict["ifs"] != None:
+				for if_id, if_dict in location_dict["ifs"]:
+					if sub_block_id == int(if_id):
+						result_list.extend(self.__get_if_list(if_dict, space_num+4))
+						break
+			if location_dict["limit_excepts"] != None:
+				for limit_except_id, limit_except_dict in location_dict["limit_excepts"]:
+					if sub_block_id == int(limit_except_id):
+						result_list.extend(self.__get_limit_except_list(limit_except_dict, space_num+4))
+						break
+		
+		# global
+		if location_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(location_dict["globals"], space_num+4))
+		
+		# "}"
+		result_list.append(root_space_str + "}")
+		
+		# last_comment
+		if location_dict["last_comment"] != None:
+			for comment_tmp in location_dict["last_comment"]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		return result_list
+	
+	def __get_limit_except_list(self, limit_except_dict, space_num):
+		# {
+			# "comments":[],
+			# "condition":"",
+			# "globals":{},
+			# "last_comment":last_comment,
+		# }
+		result_list = []
+		
+		root_space_str = ' ' * space_num
+		sub_space_str = ' ' * ( space_num + 4 )
+		
+		# before_comments
+		if ( limit_except_dict["comments"] != None ) and ( limit_except_dict["comments"][0] != None ):
+			for comment_tmp in limit_except_dict["comments"][0]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		# limit_except line & limit_except backend_comment
+		limit_except_line_str = "limit_except " + limit_except_dict["condition"] + " {"
+		if ( limit_except_dict["comments"] != None ) and ( limit_except_dict["comments"][1] != None ):
+			limit_except_line_str += limit_except_dict["comments"][1]
+		result_list.append(root_space_str + limit_except_line_str)
+		
+		# global
+		if limit_except_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(limit_except_dict["globals"], space_num+4))
+		
+		# "}"
+		result_list.append(root_space_str + "}")
+		
+		# last_comment
+		if limit_except_dict["last_comment"] != None:
+			for comment_tmp in limit_except_dict["last_comment"]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		return result_list
+	
+	def __get_if_list(self, if_dict, space_num):
+		# {
+			# "comments":[],
+			# "condition":"",
+			# "globals":{},
+			# "last_comment":last_comment,
+		# }
+		# "globals":{
+				# 1:{"key":"", "value":"", "comments":(before_comments, backend_comment)},
+				# 2:{"key":"", "value":"", "comments":None},
+				# ...
+			# },
+		result_list = []
+		
+		root_space_str = ' ' * space_num
+		sub_space_str = ' ' * ( space_num + 4 )
+		
+		# before_comments
+		if ( if_dict["comments"] != None ) and ( if_dict["comments"][0] != None ):
+			for comment_tmp in if_dict["comments"][0]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		# if line & if backend_comment
+		if_line_str = "if " + if_dict["condition"] + " {"
+		if ( if_dict["comments"] != None ) and ( if_dict["comments"][1] != None ):
+			if_line_str += if_dict["comments"][1]
+		result_list.append(root_space_str + if_line_str)
+		
+		# global
+		if if_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(if_dict["globals"], space_num+4))
+		
+		# "}"
+		result_list.append(root_space_str + "}")
+		
+		# last_comment
+		if if_dict["last_comment"] != None:
+			for comment_tmp in if_dict["last_comment"]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		return result_list
+	
+	def __get_global_item_list(self, globals, space_num):
+		result_list = []
+		
+		root_space_str = ' ' * space_num
+		# sub_space_str = ' ' * ( space_num + 4 )
+		
+		global_num = len(globals)
+		# print(globals)
+		for global_id in range(1, global_num+1):
+			# global before comment
+			if globals[global_id]["comments"] != None and globals[global_id]["comments"][0] != None:
+				for comment_tmp in globals[global_id]["comments"][0]:
+					result_list.append(root_space_str + comment_tmp)
+			# global_str & global backend_comment
+			global_str = globals[global_id]["key"] + ' ' + globals[global_id]["value"] + ";" 
+			if globals[global_id]["comments"] != None and globals[global_id]["comments"][1] != None:
+				global_str += globals[global_id]["comments"][1]
+			result_list.append(root_space_str + global_str)
+		return result_list
+	
+	# 获取格式化的nginx字符串 -> 格式化后的str组成的list
+	def __get_formatter_str_list(self, des_dict):
+		# dict_tmp = {
+			# "globals":{},
+			# "events":{},
+			# "http":{
+				# "comments":None,
+				# "globals":None,
+				# "upstreams":[],
+				# "servers":[],
+			# }, 
+			# "last_comment":None,
+		# }
+		
+		
+		result_list = []
+		
+		space_num = 0
+		root_space_str = ' ' * space_num
+		# sub_space_str = ' ' * ( space_num + 4 )
+		
+		if des_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(des_dict["globals"], space_num))
+		
+		if des_dict["events"] != None:
+			result_list.extend(self.__get_events_list(des_dict["events"], space_num))
+		
+		if des_dict["http"] != None:
+			result_list.extend(self.__get_http_list(des_dict["http"], space_num))
+		
+		if des_dict["last_comment"] != None:
+			for comment_tmp in des_dict["last_comment"]:
+				result_list.append(root_space_str + comment_tmp)
+		
+		return result_list
+	
+	################################ 内部方法 finish ################################
+	
+	################################ init start ################################
+	
+	def __init__(self, nginx_conf_file):
+		self.__file = nginx_conf_file
+	
+	################################ init finish ################################
+	
+	################################ 属性 start ################################
+	
+	# 文件内容解析结果dict - 只读
 	@property
 	def dict(self):
-		'''
-		属性 - 文件内容解析结果dict
-		'''
 		return self.__reload_file()
 	
+	################################ 属性 finish ################################
+	
+	################################ 方法 start ################################
+	
+	# 备份并格式化nginx文件
 	def format_file(self):
-		'''
-		方法 - 备份并格式化nginx文件
-		'''
 		self.__bakup_file()
-		self.__format_file(self.conf_dict)
+		self.__format_file(self.dict)
+	
+	################################ 方法 finish ################################
 	
 	def add_location(self, location_name, server_listen=None,server_name=None, **location_kw):
 		'''
@@ -968,26 +1462,6 @@ class NginxConfManager(object):
 					file_content_list.append(line_content.split('#')[0].strip())
 		
 		return self.__analysis_str(''.join(file_content_list))
-		
-	def __bakup_file(self):
-		'''
-		备份文件
-		'''
-		import os, time, shutil
-		# time.strftime("%Y-%m-%d-%H-%M-%S")
-		des_F = os.path.join(os.path.dirname(self.__file),"{}.{}.bak".format(os.path.basename(self.__file), time.strftime("%Y_%m_%d_%H_%M")))
-		try:
-			shutil.copy(self.__file,des_F)
-		except Exception as e:
-			raise SystemError( "backup file error >>>\n{}".format(e) )
-		
-	def __format_file(self, des_dict):
-		'''
-		格式化nginx文件
-		'''
-		result_str = self.__get_formatter_str(des_dict)
-		with open(self.__file, 'w') as formatter_F:
-			formatter_F.write(result_str)
 	
 	def __get_formatter_str(self, des_dict, space_num=None):
 		'''
@@ -1068,7 +1542,7 @@ class NginxConfManager(object):
 			if isinstance(value, dict) and item.startswith('location') :
 				result_str = result_str + ' '*space_num + str(item) + '\n' + ' '*space_num + '{\n' + self.__get_formatter_str(value, space_num) + ' '*space_num + '}\n'
 		return result_str
-		
+	
 	def __get_server_dict(self, server_listen=None, server_name=None):
 		'''
 		根据server_name和server_listen获得server的dict
