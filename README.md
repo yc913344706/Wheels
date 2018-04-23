@@ -1,7 +1,7 @@
 # Wheels
 自己造的轮子
 # nginx
-## 环境：python 3.6.3
+## 环境：Win 7 : Python 3.6.3
 ## nginxConfManager
 ### 作用
 nginx配置文件管理器<br/>
@@ -34,7 +34,7 @@ main()
 ```
 
 # ansible_installer
-## 环境：CentOS 7.3 :bash
+## 环境：CentOS 7.3 : Bash
 ## 作用
 ansible自动安装脚本 - shell脚本<br/>
 需注意，如果本机python版本低于2.7，会自动安装2.7.10<br/>
