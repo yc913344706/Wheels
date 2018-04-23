@@ -625,8 +625,8 @@ class NginxConfManager(object):
 	# 解析文件 -> 文件解析结果字典
 	def __analysis_file_list(self, file_list):
 		dict_tmp = {
-			"globals":{},
-			"events":{},
+			"globals":None,
+			"events":None,
 			"http":{
 				"comments":None,
 				"globals":None,
@@ -660,6 +660,7 @@ class NginxConfManager(object):
 					block_types_set.add("upstream")
 					continue
 				block_types_set.add(block["block_type"])
+		print('================', block_types_set)
 		self.__modulate_level = max(map(self.__match_modulate_level, block_types_set))
 		# print('===============',self.__modulate_level)
 		if self.__modulate_level == 0:
@@ -672,16 +673,16 @@ class NginxConfManager(object):
 			dict_tmp["globals"] = None
 			dict_tmp["events"] = None
 			dict_tmp["http"]["globals"] = globals
-			# dict_tmp["http"]["last_comment"] = last_comment
+			dict_tmp["http"]["last_comment"] = last_comment
 			for block in blocks:
-				if block["block_type"] == "upstream":
-					if dict_tmp["http"]["upstream"] == None:
-						dict_tmp["http"]["upstream"] = []
-					dict_tmp["http"]["upstreams"].append({block["id"]:self.__analysis_upstream_list(block["block_content_list"], block["block_comment"], block["block_type"])})
+				if block["block_type"].startswith("upstream "):
+					if dict_tmp["http"]["upstreams"] == None:
+						dict_tmp["http"]["upstreams"] = []
+					dict_tmp["http"]["upstreams"].append((block["id"], self.__analysis_upstream_list(block["block_content_list"], block["block_comment"], block["block_type"])))
 				if block["block_type"] == "server":
 					if dict_tmp["http"]["servers"] == None:
 						dict_tmp["http"]["servers"] = []
-					dict_tmp["http"]["servers"].append({block["id"]:self.__analysis_server_list(block["block_content_list"], block["block_comment"], block["block_type"])})
+					dict_tmp["http"]["servers"].append((block["id"], self.__analysis_server_list(block["block_content_list"], block["block_comment"], block["block_type"])))
 		
 		if self.__modulate_level == 3:
 			dict_tmp["globals"] = globals
@@ -759,7 +760,7 @@ class NginxConfManager(object):
 		
 		return result_list
 	
-	def __get_http_list(self, http_dict, space_num):
+	def __get_http_list(self, http_dict, space_num, need_http_start_line=True):
 		# {
 			# "comments":[],
 			# "globals":{},
@@ -772,16 +773,17 @@ class NginxConfManager(object):
 		root_space_str = ' ' * space_num
 		sub_space_str = ' ' * ( space_num + 4 )
 		
-		# before_comments
-		if ( http_dict["comments"] != None ) and ( http_dict["comments"][0] != None ):
-			for comment_tmp in http_dict["comments"][0]:
-				result_list.append(root_space_str + comment_tmp)
-		
-		# http line & http backend_comment
-		http_line_str = "http " + "{"
-		if ( http_dict["comments"] != None ) and ( http_dict["comments"][1] != None ):
-			http_line_str += http_dict["comments"][1]
-		result_list.append(root_space_str + http_line_str)
+		if need_http_start_line:
+			# before_comments
+			if ( http_dict["comments"] != None ) and ( http_dict["comments"][0] != None ):
+				for comment_tmp in http_dict["comments"][0]:
+					result_list.append(root_space_str + comment_tmp)
+			
+			# http line & http backend_comment
+			http_line_str = "http " + "{"
+			if ( http_dict["comments"] != None ) and ( http_dict["comments"][1] != None ):
+				http_line_str += http_dict["comments"][1]
+			result_list.append(root_space_str + http_line_str)
 		
 		# upstreams、servers
 		# 得按照upstream_dict与server_dict的key来决定先后顺序
@@ -806,8 +808,9 @@ class NginxConfManager(object):
 		if http_dict["globals"] != None:
 			result_list.extend(self.__get_global_item_list(http_dict["globals"], space_num+4))
 		
-		# "}"
-		result_list.append(root_space_str + "}")
+		if need_http_start_line:
+			# "}"
+			result_list.append(root_space_str + "}")
 		
 		# last_comment
 		if http_dict["last_comment"] != None:
@@ -1095,7 +1098,10 @@ class NginxConfManager(object):
 			result_list.extend(self.__get_events_list(des_dict["events"], space_num))
 		
 		if des_dict["http"] != None:
-			result_list.extend(self.__get_http_list(des_dict["http"], space_num))
+			if self.__modulate_level <= 2:
+				result_list.extend(self.__get_http_list(des_dict["http"], space_num, need_http_start_line=False))
+			if self.__modulate_level == 3:
+				result_list.extend(self.__get_http_list(des_dict["http"], space_num))
 		
 		if des_dict["last_comment"] != None:
 			for comment_tmp in des_dict["last_comment"]:
