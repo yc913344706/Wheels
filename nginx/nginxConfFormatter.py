@@ -1,10 +1,6 @@
 # -*- coding:utf-8 -*-
 import logging
 
-# 测试代码
-# from nginxConfManager import NginxConfManager
-# a=NginxConfManager('nginx_demo.conf')
-
 '''
 配置文件
 	nginx配置文件主要分为全局块、events块、http块 - 3
@@ -13,6 +9,7 @@ import logging
 	location块中又分为location全局块、if块、limit_except块 - 0
 思路
 	将配置文件以字典形式存于内存，以对字典的增删改查，实现对配置文件的增删改查
+	由于添加的模块级别不同，形式不同，故不在编写增删改查功能，只提供格式化功能
 问题
 	1.注释问题
 		由于为字典形式，所以每个key录入value时，检测上一行即上2/3/4...行是否是注释，是，则该key对应的value为元组("value",["comment1","comment",...])，不是，则为str
@@ -49,7 +46,7 @@ import logging
 		添加"last_comment"属性
 '''
 
-class NginxConfManager(object):
+class NginxConfFormatter(object):
 	'''
 	nginx配置文件管理器<br/>
 	目标 - 提供界面化nginx配置文件任一配置项的新增、修改、删除功能<br/>
@@ -103,10 +100,10 @@ class NginxConfManager(object):
 		
 		globals, blocks, last_comment = self.__analysis_unit(events_list)
 		if event_block_prefix.strip().lower() != "events":
-			raise YcException(NginxConfManager.TIPS_DICT["EVENTS_MODULE_ANALYSIS_WARNING"] + '\n>>> events prefix error!!!\n>>>' + event_block_prefix)
+			raise YcException(NginxConfFormatter.TIPS_DICT["EVENTS_MODULE_ANALYSIS_WARNING"] + '\n>>> events prefix error!!!\n>>>' + event_block_prefix)
 		
 		if blocks != None:
-			raise YcException(NginxConfManager.TIPS_DICT["EVENTS_MODULE_ANALYSIS_WARNING"] + '\n>>> events have sub blocks !!!\n>>>' + blocks)
+			raise YcException(NginxConfFormatter.TIPS_DICT["EVENTS_MODULE_ANALYSIS_WARNING"] + '\n>>> events have sub blocks !!!\n>>>' + blocks)
 		
 		print('finish analyze events')
 		return {
@@ -132,14 +129,14 @@ class NginxConfManager(object):
 		globals, blocks, last_comment = self.__analysis_unit(http_list)
 		# print('======',blocks)
 		if http_block_prefix.strip().lower() != "http":
-			raise YcException(NginxConfManager.TIPS_DICT["HTTP_MODULE_ANALYSIS_WARNING"] + '\n>>> http prefix error!!!\n>>>'+ http_block_prefix)
+			raise YcException(NginxConfFormatter.TIPS_DICT["HTTP_MODULE_ANALYSIS_WARNING"] + '\n>>> http prefix error!!!\n>>>'+ http_block_prefix)
 		upstreams = None
 		servers = None
 		if blocks != None:
 			for block in blocks:
 				# print('===========', block["block_type"])
 				if ( not block["block_type"].strip().lower().startswith("upstream ") ) and ( block["block_type"] != "server" ):
-					raise YcException(NginxConfManager.TIPS_DICT["HTTP_MODULE_ANALYSIS_WARNING"] + '\n>>> http\' subblock is\'t upstream or server !!!\n>>>' +block["block_type"])
+					raise YcException(NginxConfFormatter.TIPS_DICT["HTTP_MODULE_ANALYSIS_WARNING"] + '\n>>> http\' subblock is\'t upstream or server !!!\n>>>' +block["block_type"])
 				if block["block_type"].strip().lower().startswith("upstream "):
 					if upstreams == None:
 						upstreams = []
@@ -173,10 +170,10 @@ class NginxConfManager(object):
 		
 		globals, blocks, last_comment = self.__analysis_unit(upstream_list)
 		if not upstream_block_prefix.strip().lower().startswith("upstream "):
-			raise YcException(NginxConfManager.TIPS_DICT["UPSTREAM_MODULE_ANALYSIS_WARNING"] + '\n>>> upstream prefix error!!!\n>>>' + upstream_block_prefix)
+			raise YcException(NginxConfFormatter.TIPS_DICT["UPSTREAM_MODULE_ANALYSIS_WARNING"] + '\n>>> upstream prefix error!!!\n>>>' + upstream_block_prefix)
 		
 		if blocks != None:
-			raise YcException(NginxConfManager.TIPS_DICT["UPSTREAM_MODULE_ANALYSIS_WARNING"] + '\n>>> upstream have sub blocks !!!\n>>>' + blocks)
+			raise YcException(NginxConfFormatter.TIPS_DICT["UPSTREAM_MODULE_ANALYSIS_WARNING"] + '\n>>> upstream have sub blocks !!!\n>>>' + blocks)
 		
 		print('finish analyze upstream')
 		return {
@@ -202,13 +199,13 @@ class NginxConfManager(object):
 		
 		globals, blocks, last_comment = self.__analysis_unit(server_list)
 		if server_block_prefix.strip().lower() != "server":
-			raise YcException(NginxConfManager.TIPS_DICT["SERVER_MODULE_ANALYSIS_WARNING"] + '\n>>> server prefix error!!!\n>>>' + server_block_prefix)
+			raise YcException(NginxConfFormatter.TIPS_DICT["SERVER_MODULE_ANALYSIS_WARNING"] + '\n>>> server prefix error!!!\n>>>' + server_block_prefix)
 		ifs = None
 		locations = None
 		if blocks != None:
 			for block in blocks:
 				if ( not block["block_type"].strip().lower().startswith("if ") ) and ( not block["block_type"].startswith("location ") ):
-					raise YcException(NginxConfManager.TIPS_DICT["SERVER_MODULE_ANALYSIS_WARNING"] + '\n>>> server\' subblock is\'t if or location !!!\n>>>' + block["block_type"])
+					raise YcException(NginxConfFormatter.TIPS_DICT["SERVER_MODULE_ANALYSIS_WARNING"] + '\n>>> server\' subblock is\'t if or location !!!\n>>>' + block["block_type"])
 				if block["block_type"].strip().lower().startswith("if "):
 					if ifs == None:
 						ifs = []
@@ -244,14 +241,14 @@ class NginxConfManager(object):
 		
 		globals, blocks, last_comment = self.__analysis_unit(location_list)
 		if not location_block_prefix.strip().lower().startswith("location "):
-			raise YcException(NginxConfManager.TIPS_DICT["LOCATION_MODULE_ANALYSIS_WARNING"] + '\n>>> location prefix error!!!\n>>>'+ location_block_prefix)
+			raise YcException(NginxConfFormatter.TIPS_DICT["LOCATION_MODULE_ANALYSIS_WARNING"] + '\n>>> location prefix error!!!\n>>>'+ location_block_prefix)
 		ifs = None
 		limit_excepts = None
 		if blocks != None:
 			for block in blocks:
 				# if not block["block_type"].strip().lower().startswith("if "):
 				if ( not block["block_type"].strip().lower().startswith("if ") ) and ( not block["block_type"].startswith("limit_except ") ):
-					raise YcException(NginxConfManager.TIPS_DICT["LOCATION_MODULE_ANALYSIS_WARNING"] + '\n>>> location\' subblock is\'t if or limit_except!!!\n>>>' + block["block_type"])
+					raise YcException(NginxConfFormatter.TIPS_DICT["LOCATION_MODULE_ANALYSIS_WARNING"] + '\n>>> location\' subblock is\'t if or limit_except!!!\n>>>' + block["block_type"])
 				# ifs.append({block["id"]:self.__analysis_if_list(block["block_content_list"], block["block_comment"], block["block_type"])})
 				if block["block_type"].strip().lower().startswith("if "):
 					if ifs == None:
@@ -287,10 +284,10 @@ class NginxConfManager(object):
 		
 		globals, blocks, last_comment = self.__analysis_unit(if_list)
 		if not if_block_prefix.strip().lower().startswith("if "):
-			raise YcException(NginxConfManager.TIPS_DICT["IF_MODULE_ANALYSIS_WARNING"] + '\n>>> if prefix error!!!\n>>>' + if_block_prefix)
+			raise YcException(NginxConfFormatter.TIPS_DICT["IF_MODULE_ANALYSIS_WARNING"] + '\n>>> if prefix error!!!\n>>>' + if_block_prefix)
 		
 		if blocks != None:
-			raise YcException(NginxConfManager.TIPS_DICT["IF_MODULE_ANALYSIS_WARNING"] + '\n>>> if have sub blocks !!!\n>>>' + blocks)
+			raise YcException(NginxConfFormatter.TIPS_DICT["IF_MODULE_ANALYSIS_WARNING"] + '\n>>> if have sub blocks !!!\n>>>' + blocks)
 		
 		print('finish analyze if')
 		return {
@@ -315,10 +312,10 @@ class NginxConfManager(object):
 		
 		globals, blocks, last_comment = self.__analysis_unit(limit_except_list)
 		if not limit_except_block_prefix.strip().lower().startswith("limit_except "):
-			raise YcException(NginxConfManager.TIPS_DICT["LIMIT_EXCEPT_MODULE_ANALYSIS_WARNING"] + '\n>>> limit_except prefix error!!!\n>>>' + limit_except_block_prefix)
+			raise YcException(NginxConfFormatter.TIPS_DICT["LIMIT_EXCEPT_MODULE_ANALYSIS_WARNING"] + '\n>>> limit_except prefix error!!!\n>>>' + limit_except_block_prefix)
 		
 		if blocks != None:
-			raise YcException(NginxConfManager.TIPS_DICT["LIMIT_EXCEPT_MODULE_ANALYSIS_WARNING"] + '\n>>> limit_except have sub blocks !!!\n>>>' + blocks)
+			raise YcException(NginxConfFormatter.TIPS_DICT["LIMIT_EXCEPT_MODULE_ANALYSIS_WARNING"] + '\n>>> limit_except have sub blocks !!!\n>>>' + blocks)
 		
 		print('finish analyze limit_except')
 		return {
@@ -620,7 +617,7 @@ class NginxConfManager(object):
 	
 	# 根据传入的block_type通过查询block等级字典确定该block的级别，如http - 3
 	def __match_modulate_level(self, block_type):
-		return NginxConfManager.MODULATE_LEVEL_DICT[block_type]
+		return NginxConfFormatter.MODULATE_LEVEL_DICT[block_type]
 	
 	# 解析文件 -> 文件解析结果字典
 	def __analysis_file_list(self, file_list):
@@ -664,10 +661,10 @@ class NginxConfManager(object):
 		self.__modulate_level = max(map(self.__match_modulate_level, block_types_set))
 		# print('===============',self.__modulate_level)
 		if self.__modulate_level == 0:
-			raise YcException(NginxConfManager.TIPS_DICT['FILE_MODULATE_ERROR'])
+			raise YcException(NginxConfFormatter.TIPS_DICT['FILE_MODULATE_ERROR'])
 		
 		if self.__modulate_level == 1:
-			raise YcException(NginxConfManager.TIPS_DICT['FILE_MODULATE_ERROR'])
+			raise YcException(NginxConfFormatter.TIPS_DICT['FILE_MODULATE_ERROR'])
 		
 		if self.__modulate_level == 2:
 			dict_tmp["globals"] = None
@@ -785,6 +782,10 @@ class NginxConfManager(object):
 				http_line_str += http_dict["comments"][1]
 			result_list.append(root_space_str + http_line_str)
 		
+		# global
+		if http_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(http_dict["globals"], space_num+4))
+		
 		# upstreams、servers
 		# 得按照upstream_dict与server_dict的key来决定先后顺序
 		sub_block_num = 0
@@ -796,17 +797,19 @@ class NginxConfManager(object):
 			if http_dict["upstreams"] != None:
 				for upstream_id, upstream_dict in http_dict["upstreams"]:
 					if sub_block_id == int(upstream_id):
-						result_list.extend(self.__get_upstream_list(upstream_dict, space_num+4))
+						if need_http_start_line:
+							result_list.extend(self.__get_upstream_list(upstream_dict, space_num+4))
+						else:
+							result_list.extend(self.__get_upstream_list(upstream_dict, space_num))
 						break
 			if http_dict["servers"] != None:
 				for server_id, server_dict in http_dict["servers"]:
 					if sub_block_id == int(server_id):
-						result_list.extend(self.__get_server_list(server_dict, space_num+4))
+						if need_http_start_line:
+							result_list.extend(self.__get_server_list(server_dict, space_num+4))
+						else:
+							result_list.extend(self.__get_server_list(server_dict, space_num))
 						break
-		
-		# global
-		if http_dict["globals"] != None:
-			result_list.extend(self.__get_global_item_list(http_dict["globals"], space_num+4))
 		
 		if need_http_start_line:
 			# "}"
@@ -880,6 +883,10 @@ class NginxConfManager(object):
 			server_line_str += server_dict["comments"][1]
 		result_list.append(root_space_str + server_line_str)
 		
+		# global
+		if server_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(server_dict["globals"], space_num+4))
+		
 		# ifs、locations
 		# 得按照if_dict与limit_except_dict的key来决定先后顺序
 		sub_block_num = 0
@@ -898,10 +905,6 @@ class NginxConfManager(object):
 					if sub_block_id == int(location_id):
 						result_list.extend(self.__get_location_list(location_dict, space_num+4))
 						break
-		
-		# global
-		if server_dict["globals"] != None:
-			result_list.extend(self.__get_global_item_list(server_dict["globals"], space_num+4))
 		
 		# "}"
 		result_list.append(root_space_str + "}")
@@ -938,6 +941,10 @@ class NginxConfManager(object):
 			location_line_str += location_dict["comments"][1]
 		result_list.append(root_space_str + location_line_str)
 		
+		# global
+		if location_dict["globals"] != None:
+			result_list.extend(self.__get_global_item_list(location_dict["globals"], space_num+4))
+		
 		# ifs、limit_excepts
 		# 得按照if_dict与limit_except_dict的key来决定先后顺序
 		sub_block_num = 0
@@ -956,10 +963,6 @@ class NginxConfManager(object):
 					if sub_block_id == int(limit_except_id):
 						result_list.extend(self.__get_limit_except_list(limit_except_dict, space_num+4))
 						break
-		
-		# global
-		if location_dict["globals"] != None:
-			result_list.extend(self.__get_global_item_list(location_dict["globals"], space_num+4))
 		
 		# "}"
 		result_list.append(root_space_str + "}")
@@ -1271,368 +1274,6 @@ class NginxConfManager(object):
 			return
 		# 修改location - 不存在的key-value会新增
 		return {des_key:server_dict[des_key]}
-	
-	def __analysis_str(self,des_str,result_dict=None):
-		'''
-		递归获得nginx配置文件解析结果dict
-		'''
-		# 文件正确性检测
-		import re
-		invalid_item_pattern = re.compile(r'{[\s]*}')
-		invalid_item_match = invalid_item_pattern.search(des_str)
-		if invalid_item_match != None:
-			raise ValueError("invalid conf item >>> "+invalid_item_match.group())
-		
-		# 初始化属性
-		if result_dict == None:
-			result_dict = {}
-		
-		str_content_list = des_str.split(';')
-		
-		sub_str_list = []
-		other_str_list = []
-		
-		# 计算start_index
-		start_index = -1
-		sub_type_name = ""
-		if not 'single_conf_item' in result_dict:
-			result_dict['single_conf_item'] = []
-		for index in range(0, len(str_content_list)):
-			line_content = str_content_list[index].strip()
-			# 有效行判断
-			if len(line_content) == 0:
-				continue
-			
-			if not '{' in line_content:
-				# 不包含{ 
-				## 直接添加
-				### --- key
-				### --- key value
-				### --- key value1 value2 ...
-				item_num = len(line_content.split())
-				if item_num == 1:
-					result_dict['single_conf_item'].append(line_content)
-				elif item_num == 2:
-					# 如果该key出现多次，如server、allow，则把值存为数组
-					if line_content.split()[0].strip() in result_dict:
-						key_old = line_content.split()[0].strip()
-						value_old = result_dict[key_old]
-						if isinstance(value_old, list):
-							value_old.append(line_content.split()[1])
-						else:
-							list_tmp = []
-							list_tmp.append(value_old)
-							list_tmp.append(line_content.split()[1])
-							result_dict[key_old] = list_tmp
-					else:
-						result_dict[line_content.split()[0].strip()] = line_content.split()[1]
-				else:
-					# 如果该key出现多次，如server、allow，则把值存为数组
-					if line_content.split()[0].strip() in result_dict:
-						key_old = line_content.split()[0].strip()
-						value_old = result_dict[key_old]
-						if isinstance(value_old, list):
-							value_old.append(' '.join(line_content.split()[1:]))
-						else:
-							list_tmp = []
-							list_tmp.append(value_old)
-							list_tmp.append(' '.join(line_content.split()[1:]))
-							result_dict[key_old] = list_tmp
-					else:
-						result_dict[line_content.split()[0].strip()] = ' '.join(line_content.split()[1:])
-			else:
-				# {行--start_index
-				## sub_type_name
-				start_index = index
-				sub_type_name = line_content.split('{')[0].lstrip('}').strip()
-				### sub_type_name可以细分，以便区分，比如server...
-				# server配置项以server-port为sub_type_name区分
-				# if sub_type_name == "server":
-					# server_port = ""
-					# index_get_server_port_index = start_index
-					# while len(server_port) == 0 and index_get_server_port_index < len(str_content_list):
-						
-						# list_get_server_port_tmp = str_content_list[index_get_server_port_index].split()
-						
-						# listen在第一行
-						# if index_get_server_port_index == start_index:
-							# if 'listen' in list_get_server_port_tmp[1]:
-								# server_port = list_get_server_port_tmp[2]
-						# else:
-							# if list_get_server_port_tmp[0] == 'listen':
-								# server_port = list_get_server_port_tmp[1]
-						# index_get_server_port_index += 1
-					# sub_type_name = 'server-'+server_port
-				break
-		
-		# 如果有子配置项
-		if start_index != -1:
-			# 计算end_index
-			end_index = 0
-			start_brackets_num = 1
-			end_brackets_num = 0
-			for index_cal_end_index in range(start_index, len(str_content_list)):
-				if index_cal_end_index == start_index :
-					if str_content_list[start_index].count('{') > 1:
-						start_brackets_num += str_content_list[start_index].count('{') - 1
-				else:
-					## end_index行
-					### --- '[}]+' 
-					### --- '[}]+.+{.+'
-					if '}' in str_content_list[index_cal_end_index]:
-						end_brackets_num += str_content_list[index_cal_end_index].count('}')
-						if start_brackets_num == end_brackets_num:
-							end_index = index_cal_end_index
-							break
-					if '{' in str_content_list[index_cal_end_index]:
-						start_brackets_num += str_content_list[index_cal_end_index].count('{')
-
-			# 计算sub_str_list
-			## --- [0]: str_content_list[start_index]的第一个{之后的str(不包含{)
-			## --- [-1]: str_content_list[end_index]的最后一个}之前的str(不包含})
-			for index_get_sub_str_index in range(start_index,end_index+1):
-				if index_get_sub_str_index == start_index:
-					first_line_str = ""
-					first_line_list = str_content_list[start_index].split('{')[1:]
-					if len(first_line_list) > 1:
-						first_line_str = '{'.join(first_line_list).strip()
-					else:
-						first_line_str = first_line_list[0].strip()
-					sub_str_list.append(first_line_str)
-					
-				elif index_get_sub_str_index == end_index:
-					last_line_str = ""
-					last_line_list = str_content_list[index_get_sub_str_index].split('}')[:-1]
-					if len(last_line_list) > 1:
-						last_line_str = '}'.join(last_line_list).strip()
-					else:
-						last_line_str = last_line_list[0].strip()
-					sub_str_list.append(last_line_str)
-				else:
-					sub_str_list.append(str_content_list[index_get_sub_str_index])
-			
-			# 如果有其他配置项
-			if end_index < len(str_content_list)-1:
-				# 计算other_str_list
-				## --- [0]: str_content_list[end_index]的最后一个}之后的str(不包含})
-				## --- [-1]: str_content_list[len(str_content_list)-1]
-				for index_get_other_str_index in range(end_index,len(str_content_list)):
-					if index_get_other_str_index == end_index:
-						other_str_list.append(str_content_list[index_get_other_str_index].split('}')[-1].strip())
-					else:
-						other_str_list.append(str_content_list[index_get_other_str_index])
-				
-			# 最终得到的结果：sub_str,other_str
-			sub_str = ';'.join(sub_str_list)
-			other_str = ';'.join(other_str_list)
-			
-			# 递归
-			# 如果该key出现多次，如server，则把值存为数组，并添加key - '__sub_type_id'
-			new_result = self.__analysis_str(sub_str)
-			if sub_type_name in result_dict:
-				old_value = result_dict[sub_type_name]
-				if isinstance(old_value, list):
-					# 已经是数组，直接取出数组中最后一个'__sub_type_id'对应的值，加1运算后赋给新字典的'__sub_type_id'值，并把新字典添加进数组
-					new_result['__sub_type_id'] = int(old_value[len(old_value)-1]['__sub_type_id'])+1
-					old_value.append(new_result)
-				else:
-					# 还不是数组，要给上一个字典中添加'__sub_type_id' = 0，新字典添加'__sub_type_id' = 1，并将上一个字典和当前新字典添加进数组
-					list_tmp = []
-					old_value['__sub_type_id'] = 0
-					new_result['__sub_type_id'] = 1
-					list_tmp.append(old_value)
-					list_tmp.append(new_result)
-					result_dict[sub_type_name] = list_tmp
-			else:
-				result_dict[sub_type_name] = self.__analysis_str(sub_str)
-			self.__analysis_str(other_str, result_dict=result_dict)
-		if 'single_conf_item' in result_dict:
-			if len(result_dict['single_conf_item']) == 0:
-				result_dict.pop('single_conf_item')
-		return result_dict
-	
-	def __analysis_file(self):
-		'''
-		解析nginx配置文件
-		'''
-		# import re
-		# http_pattern = re.compile(r'http[\s]*{}')
-		
-		# 文件所有内容列表
-		file_content_list = []
-		
-		# 把文件有效内容读取到文件所有内容列表中
-		with open(self.__file, 'r', encoding='utf-8') as file_opened:
-			for line_content in file_opened:
-				if ( not line_content.startswith('#') ) and ( not len(line_content) == 0 ):
-					file_content_list.append(line_content.split('#')[0].strip())
-		
-		return self.__analysis_str(''.join(file_content_list))
-	
-	def __get_formatter_str(self, des_dict, space_num=None):
-		'''
-		获取格式化的nginx字符串
-		'''
-		if space_num == None:
-			space_num = 0
-		else:
-			space_num += 4
-		result_str = ""
-		
-		import re
-		# location.*[\s]/有其单独的排序规则，故与其他拆开
-		location_dict = {}
-		for item in des_dict:
-			if isinstance(des_dict[item], dict) and re.match(r'location.*[\s]/',item) != None:
-				location_dict[item] = des_dict[item]
-		
-		print('--->',sorted([(k, des_dict[k]) for k in des_dict],key=lambda x: (isinstance(x[1], dict),isinstance(x[1], list))))
-		
-		# 写入result_str，\n在末尾(除过location.*[\s]/)
-		# sorted函数key的用法 - https://segmentfault.com/q/1010000005111826
-		for item,value in sorted([(k, des_dict[k]) for k in des_dict],key=lambda x: (\
-		# server-listen在最前
-		not x[0] == 'listen',\
-		# server-name在第二前
-		not x[0] == 'server_name',\
-		# http-server在最后
-		x[0] == 'server',\
-		# server-location在第二后（除过location.*[\s]/）
-		x[0].startswith('location'),\
-		# 其他的dict在最后
-		isinstance(x[1], dict), \
-		# isinstance(x[1], list),\
-		# 在上面的规则基础上，按key排序
-		x[0]\
-		)):
-			# item是'__sub_type_id' - 忽略
-			if item == '__sub_type_id':
-				continue
-			# item是'single_conf_item' - 添加
-			if item == 'single_conf_item':
-				for i in value:
-					result_str = result_str + ' '*space_num + i + ';\n'
-				continue
-			# item是'log_format'
-			if item == 'log_format':
-				log_list = value.split("''")
-				result_str = result_str + ' '*space_num + "log_format {}'\n".format(log_list[0]) +"{}'".format(' '*space_num*2) + "'\n{}'".format(' '*space_num*2).join(log_list[1:]) + ';\n'
-				continue
-			# value是字符串 - 添加
-			if isinstance(value, str):
-				result_str = result_str + ' '*space_num + '{} {}'.format(item, value) + ';\n'
-			# value是列表
-			if isinstance(value, list):
-				for i in value:
-					## value中的每一项是字符串 - 添加
-					if isinstance(i,str):
-						result_str = result_str + ' '*space_num + '{} {}'.format(item, i) + ';\n'
-					## value中的每一项是dict - 递归
-					if isinstance(i,dict):
-						# result_str = result_str + ' '*space_num  + self.__get_formatter_str(i, space_num) + ' '*space_num + '}\n'
-						result_str = result_str + ' '*space_num + str(item) + '\n' + ' '*space_num + '{\n' + self.__get_formatter_str(i, space_num) + ' '*space_num + '}\n'
-			# value是dict - 递归
-			if isinstance(value, dict) and ( not item.startswith('location') ):
-				result_str = result_str + ' '*space_num + str(item) + '\n' + ' '*space_num + '{\n' + self.__get_formatter_str(value, space_num) + ' '*space_num + '}\n'
-		
-		# 获得location.*[\s]/字典的对应字符串，在最后
-		for item,value in sorted([(k, location_dict[k]) for k in location_dict],key=lambda x:(\
-			# 数字在最前面
-			not ( len( re.match(r'.*[\s]/',x[0]).group() ) != len( x[0] ) and x[0][len( re.match(r'.*[\s]/',x[0]).group() )].isdigit() ),\
-			# location / 第二个
-			not ( len( re.match(r'.*[\s]/',x[0]).group() ) == len( x[0] ) ),\
-			# 数字按照大小排序
-			# 其余的根据首字母排序
-			x[0][len( re.match(r'.*[\s]/',x[0]).group() )-1 : len( re.match(r'.*[\s]/',x[0]).group() )+1 ][-1].upper()
-		)):
-			if isinstance(value, dict) and item.startswith('location') :
-				result_str = result_str + ' '*space_num + str(item) + '\n' + ' '*space_num + '{\n' + self.__get_formatter_str(value, space_num) + ' '*space_num + '}\n'
-		return result_str
-	
-	def __get_server_dict(self, server_listen=None, server_name=None):
-		'''
-		根据server_name和server_listen获得server的dict
-		'''
-		server_listen_need_be_judge = False if server_listen ==None else True
-		server_name_need_be_judge = False if server_name ==None else True
-		
-		server_dicts_list = self.conf_dict['http']['server']
-		if isinstance(server_dicts_list, dict):
-			if server_listen_need_be_judge :
-				if 'listen' not in server_dicts_list:
-					logging.warning('param warning: des server no listen >{}'.format(server_listen))
-				if 'ssl' in server_dicts_list['listen']:
-					if '{} ssl'.format(server_listen) != server_dicts_list['listen']:
-						logging.warning('param warning: you input listen is "{}",but the server listen is  "{}"'.format(server_listen,server_dicts_list['listen'][:-4]))
-				elif 'SSL' in server_dicts_list['listen']:
-					if '{} SSL'.format(server_listen) != server_dicts_list['listen']:
-						logging.warning('param warning: you input listen is "{}",but the server listen is  "{}"'.format(server_listen,server_dicts_list['listen'][:-4]))
-				else:
-					if str(server_listen) != server_dicts_list['listen']:
-						logging.warning('param warning: you input listen is "{}",but the server listen is  "{}"'.format(server_listen,server_dicts_list['listen']))
-			return server_dicts_list
-		
-		# 如果没有传入server_listen或server_name并且http - server是列表，则报错
-		if server_listen==None and server_name == None and isinstance(server_dicts_list,list):
-			raise ValueError("params error, there are many server but no server name or server listen!!!\nyou need add sever name param or server listen param")
-		
-		# 只有1个server
-		if (not server_listen_need_be_judge) and (not server_name_need_be_judge):
-			return server_dicts_list
-		# 多个server
-		server_dict = {}
-		for server_dict_tmp in server_dicts_list:
-			server_listen_condition = False
-			server_name_condition = False
-			if 'listen' in server_dict_tmp and server_listen_need_be_judge:
-				if str(server_listen) in server_dict_tmp['listen']:
-					if 'ssl' in server_dict_tmp['listen']:
-						if '{} ssl'.format(server_listen) == server_dict_tmp['listen']:
-							server_listen_condition = True
-					elif 'SSL' in server_dict_tmp['listen']:
-						if '{} SSL'.format(server_listen) == server_dict_tmp['listen']:
-							server_listen_condition = True
-					else:
-						if str(server_listen) == server_dict_tmp['listen']:
-							server_listen_condition = True
-			
-			if 'server_name' in server_dict_tmp and server_name_need_be_judge:
-				if server_name == server_dict_tmp['server_name']:
-					server_name_condition = True
-			# listen	true	true	false
-			# name		true	false	true
-			# 只指定了server listen
-			if not server_name_need_be_judge:
-				if server_listen_condition:
-					if len(server_dict) != 0:
-						raise ValueError("params error, there are many serve with the specified server listen!!!\nyou need add sever name param")
-					server_dict = server_dict_tmp
-			# 只指定了server name
-			elif not server_listen_need_be_judge:
-				if server_name_condition:
-					if len(server_dict) != 0:
-						raise ValueError("params error, there are many serve with the specified server name!!!\nyou need add sever listen param")
-					server_dict = server_dict_tmp
-			# server listen 和server name 同时指定
-			else:
-				if server_listen_condition and server_name_condition:
-					if len(server_dict) != 0:
-						raise ValueError("params error, there are many serve with the specified server name and server listen!!!\nyou need check your nginx conf file")
-					server_dict = server_dict_tmp
-		
-		# 只指定了server listen
-		if not server_name_need_be_judge:
-			if len(server_dict) == 0:
-				raise ValueError("params error, there are no serve with the specified server listen!!!")
-		# 只指定了server name
-		elif not server_listen_need_be_judge:
-			if len(server_dict) == 0:
-				raise ValueError("params error, there are no serve with the specified server name!!!")
-		# server listen 和server name 同时指定
-		else:
-			if len(server_dict) == 0:
-				raise ValueError("params error, there are no serve with the specified server listen and server name!!!")
-		return server_dict
 	
 class YcException(Exception):
 	def __init__(self, exception_type):
