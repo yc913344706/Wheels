@@ -31,7 +31,7 @@ def get_process_cpu():
 def get_busy_threads(java_pid, thread_cpu_limit):
 	'''获得java_pid进程中占用cpu高于thread_cpu_limit的线程 -> list'''
 	print(">>>>" + time.strftime("%Y-%m-%d_%H_%M_%S", time.localtime()) + " get_busy_threads")
-	result_list = [s.split() for s in os.popen("ps -mp %s -o THREAD,tid,time|awk '{if ($2>%d && $8!=\"-\") {print $8,%2,%9}}'" % (java_pid, thread_cpu_limit)).read().split('\n')[:-1]]
+	result_list = [s.split() for s in os.popen("ps -mp %s -o THREAD,tid,time|awk '{if ($2>%d && $8!=\"-\") {print $8,$2,$9}}'" % (java_pid, thread_cpu_limit)).read().split('\n')[:-1]]
 	for index_tmp in range(0, len(result_list)):
 		result_list[index_tmp][0] = "%x" % int(result_list[index_tmp][0])
 	return result_list
