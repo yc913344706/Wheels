@@ -42,8 +42,7 @@ sh ansible_installer.sh
 ```
 
 # os_script
-## 作用
-### cpu_monitor_for_java
+## cpu_monitor_for_java.py
     后台运行该脚本，
     可在运行tomat的java进程占用CPU过高时，
     dump占用CPU过高的thread信息、JVM内存信息以及JVM实时堆栈信息到脚本所在目录下的logs文件夹，
