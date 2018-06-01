@@ -9,7 +9,7 @@
 功能：
 	后台运行该脚本，
 	可在运行tomat的java进程占用CPU过高时，
-	dump占用CPU过高的thread信息、JVM内存信息以及JVM堆栈信息到指定目录下，
+	dump占用CPU过高的thread信息、JVM内存信息以及JVM实时堆栈信息到脚本所在目录下的logs文件夹，
 	方便回溯。
 参考：
 	记一次线上Java程序导致服务器CPU占用率过高的问题排除过程

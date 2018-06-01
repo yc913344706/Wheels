@@ -7,12 +7,6 @@
 nginx配置文件格式化工具<br/>
 功能 - `对nginx配置文件自动格式化`<br/>
 ~~由于添加的模块级别不同，形式不同，故不在编写增删改查功能，只提供格式化功能~~
-### 注意
-```
-1. 对模块化到location/if/limit_except的配置文件，会报错
-2. 对配置文件进行格式化时，不会删除掉文件中的注释！！！
-3. 且在源位置有备份
-```
 ### 使用举例
 ```Python
 # 假设Wheels的本地位置为'E:\yc_study\github\Wheels'
@@ -46,3 +40,11 @@ cd /data01/software/ansible_installer
 chmod +x ansible_installer.sh
 sh ansible_installer.sh
 ```
+
+# os_script
+## 作用
+### cpu_monitor_for_java
+    后台运行该脚本，
+    可在运行tomat的java进程占用CPU过高时，
+    dump占用CPU过高的thread信息、JVM内存信息以及JVM实时堆栈信息到脚本所在目录下的logs文件夹，
+    方便回溯。
