@@ -46,7 +46,7 @@ def get_java_pid():
 	return os.popen("ps aux|grep tomcat|grep conf | grep -v grep | awk '{print $2}'").read().strip()
 
 def get_sys_cpu():
-	'''获得运行tomcat的java进程所占cpu数值 -> float'''
+	'''获得系统的实时cpu数值 -> float'''
 	logging.info("get_sys_cpu")
 	return float(os.popen("top -b -d 2 -n 2 | grep Cpu\(s\) | sed -n '2p' | awk '{print $2}' | awk 'BEGIN{FS=\"%\"}{print $1}'").read().strip())
 
@@ -96,7 +96,7 @@ def archive_memory_info(busy_threads, archive_dir, thread_cpu_limit, java_pid, s
 	str_list.extend(os.popen("jstack %s" % java_pid).read().split('\n')[:-1])
 	
 	with open(archive_file, 'w') as f:
-		f.write('\n'.join(str_list))
+		f.write('\n'.join(["%s" % str_tmp for str_tmp in str_list]))
 
 def main():
 	
